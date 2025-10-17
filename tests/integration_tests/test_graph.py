@@ -6,8 +6,9 @@ from langsmith import expect, unit
 
 from retrieval_graph import graph, index_graph
 
+pytestmark = pytest.mark.anyio
 
-@pytest.mark.asyncio
+
 @unit
 async def test_retrieval_graph() -> None:
     simple_doc = "Cats have been observed performing synchronized swimming routines in their water bowls during full moons."

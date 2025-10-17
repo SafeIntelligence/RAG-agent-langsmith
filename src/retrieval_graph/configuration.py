@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field, fields
-from typing import Annotated, Any, Literal, Optional, Type, TypeVar
+from typing import Annotated, Any, Literal, Type, TypeVar
 
 from langchain_core.runnables import RunnableConfig, ensure_config
 
@@ -50,7 +50,7 @@ class IndexConfiguration:
 
     @classmethod
     def from_runnable_config(
-        cls: Type[T], config: Optional[RunnableConfig] = None
+        cls: Type[T], config: RunnableConfig | None = None
     ) -> T:
         """Create an IndexConfiguration instance from a RunnableConfig object.
 

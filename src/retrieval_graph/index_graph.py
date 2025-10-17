@@ -1,6 +1,6 @@
 """This "graph" simply exposes an endpoint for a user to upload docs to be indexed."""
 
-from typing import Optional, Sequence
+from typing import Sequence
 
 from langchain_core.documents import Document
 from langchain_core.runnables import RunnableConfig
@@ -32,7 +32,7 @@ def ensure_docs_have_user_id(
 
 
 async def index_docs(
-    state: IndexState, *, config: Optional[RunnableConfig] = None
+    state: IndexState, *, config: RunnableConfig | None = None
 ) -> dict[str, str]:
     """Asynchronously index documents in the given state using the configured retriever.
 
@@ -56,7 +56,7 @@ async def index_docs(
 # Define a new graph
 
 
-builder = StateGraph(IndexState, config_schema=IndexConfiguration)
+builder = StateGraph(IndexState, context_schema=IndexConfiguration)
 builder.add_node(index_docs)
 builder.add_edge("__start__", "index_docs")
 # Finally, we compile it!

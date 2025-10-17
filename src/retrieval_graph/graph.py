@@ -12,9 +12,9 @@ from typing import cast
 from langchain_core.documents import Document
 from langchain_core.messages import BaseMessage
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.pydantic_v1 import BaseModel
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import StateGraph
+from pydantic import BaseModel
 
 from retrieval_graph import retrieval
 from retrieval_graph.configuration import Configuration
@@ -136,7 +136,7 @@ async def respond(
 # Define a new graph (It's just a pipe)
 
 
-builder = StateGraph(State, input=InputState, config_schema=Configuration)
+builder = StateGraph(State, input_schema=InputState, context_schema=Configuration)
 
 builder.add_node(generate_query)
 builder.add_node(retrieve)
