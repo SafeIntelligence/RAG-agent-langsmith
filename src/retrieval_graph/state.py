@@ -21,7 +21,7 @@ these state management operations.
 
 import uuid
 from dataclasses import dataclass, field
-from typing import Annotated, Any, Literal, Optional, Sequence, Union
+from typing import Annotated, Any, Literal, Sequence, Union
 
 from langchain_core.documents import Document
 from langchain_core.messages import AnyMessage
@@ -31,7 +31,7 @@ from langgraph.graph import add_messages
 
 
 def reduce_docs(
-    existing: Optional[Sequence[Document]],
+    existing: Sequence[Document] | None,
     new: Union[
         Sequence[Document],
         Sequence[dict[str, Any]],

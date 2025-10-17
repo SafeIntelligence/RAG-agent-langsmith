@@ -101,6 +101,12 @@ ELASTICSEARCH_URL=http://host.docker.internal:9200
 ELASTICSEARCH_USER=elastic
 ELASTICSEARCH_PASSWORD=changeme
 ```
+
+If you want to run `make integration_tests` while running Elasticsearch locally via Docker, we need to use `localhost` to access it instead:
+```
+export ELASTICSEARCH_URL=http://localhost:9200
+```
+
 #### MongoDB Atlas
 
 MongoDB Atlas is a fully-managed cloud database that includes vector search capabilities for AI-powered applications.
