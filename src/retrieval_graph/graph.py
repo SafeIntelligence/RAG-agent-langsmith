@@ -138,9 +138,9 @@ async def respond(
 
 builder = StateGraph(State, input_schema=InputState, context_schema=Configuration)
 
-builder.add_node(generate_query)
-builder.add_node(retrieve)
-builder.add_node(respond)
+builder.add_node(generate_query)  # type: ignore[arg-type]
+builder.add_node(retrieve)  # type: ignore[arg-type]
+builder.add_node(respond)  # type: ignore[arg-type]
 builder.add_edge("__start__", "generate_query")
 builder.add_edge("generate_query", "retrieve")
 builder.add_edge("retrieve", "respond")
