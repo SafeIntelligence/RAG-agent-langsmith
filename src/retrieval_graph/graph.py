@@ -100,7 +100,7 @@ async def retrieve(
         dict[str, list[Document]]: A dictionary with a single key "retrieved_docs"
         containing a list of retrieved Document objects.
     """
-    with retrieval.make_retriever(config) as retriever:
+    async with retrieval.make_retriever(config) as retriever:
         response = await retriever.ainvoke(state.queries[-1], config)
         return {"retrieved_docs": response}
 

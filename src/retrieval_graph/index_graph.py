@@ -22,7 +22,11 @@ def ensure_docs_have_user_id(
     Returns:
         list[Document]: A new list of Document objects with updated metadata.
     """
-    user_id = config["configurable"]["user_id"]
+    configurable = config.get("configurable", {})
+    if "user_id" not in configurable:
+        raise ValueError("Configuration missing user_id for indexing.")
+
+    user_id = configurable["user_id"]
     return [
         Document(
             page_content=doc.page_content, metadata={**doc.metadata, "user_id": user_id}
@@ -46,9 +50,9 @@ async def index_docs(
     """
     if not config:
         raise ValueError("Configuration required to run index_docs.")
-    with retrieval.make_retriever(config) as retriever:
-        stamped_docs = ensure_docs_have_user_id(state.docs, config)
 
+    async with retrieval.make_retriever(config) as retriever:
+        stamped_docs = ensure_docs_have_user_id(state.docs, config)
         await retriever.aadd_documents(stamped_docs)
     return {"docs": "delete"}
 

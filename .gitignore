@@ -162,3 +162,10 @@ cython_debug/
 #.idea/
 .DS_Store
 uv.lock
+
+# vscode
+.vscode/
+
+# LangSmith local storage
+.langsmith/
+.langgraph_api/
