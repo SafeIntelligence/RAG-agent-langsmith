@@ -31,6 +31,9 @@ def make_text_encoder(model: str) -> Embeddings:
             from langchain_cohere import CohereEmbeddings
 
             return CohereEmbeddings(model=model)  # type: ignore
+        case "google_genai":
+            from langchain_google_genai import GoogleGenerativeAIEmbeddings
+            return GoogleGenerativeAIEmbeddings(model=model)
         case _:
             raise ValueError(f"Unsupported embedding provider: {provider}")
 
