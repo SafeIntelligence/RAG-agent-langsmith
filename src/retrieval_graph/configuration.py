@@ -99,3 +99,38 @@ class Configuration(IndexConfiguration):
             "description": "The language model used for processing and refining queries. Should be in the form: provider/model-name."
         },
     )
+
+    grade_system_prompt: str = field(
+        default=prompts.GRADE_SYSTEM_PROMPT,
+        metadata={
+            "description": "The system prompt used for grading document relevance."
+        },
+    )
+
+    grade_model: Annotated[str, {"__template_metadata__": {"kind": "llm"}}] = field(
+        default="anthropic/claude-3-haiku-20240307",
+        metadata={
+            "description": "The language model used for document grading. Should be in the form: provider/model-name."
+        },
+    )
+
+    rewrite_system_prompt: str = field(
+        default=prompts.REWRITE_QUERY_SYSTEM_PROMPT,
+        metadata={
+            "description": "The system prompt used when rewriting search queries after irrelevant retrieval results."
+        },
+    )
+
+    rewrite_model: Annotated[str, {"__template_metadata__": {"kind": "llm"}}] = field(
+        default="anthropic/claude-3-haiku-20240307",
+        metadata={
+            "description": "The language model used for rewriting queries. Should be in the form: provider/model-name."
+        },
+    )
+
+    max_refinement_attempts: int = field(
+        default=2,
+        metadata={
+            "description": "Maximum number of query rewrite attempts when retrieved documents are irrelevant."
+        },
+    )

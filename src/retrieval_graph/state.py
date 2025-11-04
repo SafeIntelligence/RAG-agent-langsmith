@@ -21,7 +21,7 @@ these state management operations.
 
 import uuid
 from dataclasses import dataclass, field
-from typing import Annotated, Any, Literal, Sequence, Union
+from typing import Annotated, Any, Literal, Optional, Sequence, Union
 
 from langchain_core.documents import Document
 from langchain_core.messages import AnyMessage
@@ -156,6 +156,18 @@ class State(InputState):
 
     retrieved_docs: list[Document] = field(default_factory=list)
     """Populated by the retriever. This is a list of documents that the agent can reference."""
+
+    discarded_docs: list[Document] = field(default_factory=list)
+    """Documents that were retrieved but graded as irrelevant."""
+
+    last_retrieval_relevant: Optional[bool] = None
+    """Outcome of the most recent grading step: True for relevant docs, False for none, None if unset."""
+
+    refinement_attempts: int = 0
+    """Number of times the agent has attempted to rewrite the query for the current user turn."""
+
+    should_retry: bool = False
+    """Flag indicating whether the agent should attempt another retrieval with a rewritten query."""
 
     # Feel free to add additional attributes to your state as needed.
     # Common examples include retrieved documents, extracted entities, API connections, etc.
