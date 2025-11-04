@@ -6,6 +6,7 @@ and key functions for processing user inputs, generating queries, retrieving
 relevant documents, and formulating responses.
 """
 
+import asyncio
 import json
 from datetime import datetime, timezone
 from typing import Any, Literal, Optional, cast
@@ -222,22 +223,31 @@ async def grade_documents(
         DocumentGrade
     )
 
+    semaphore = asyncio.Semaphore(max(1, configuration.max_parallel_grades))
+
+    async def score_document(index: int, doc: Document) -> tuple[Document, bool]:
+        async with semaphore:
+            message_value = await prompt.ainvoke(
+                {
+                    "question": question,
+                    "query": current_query_text,
+                    "document_number": str(index),
+                    "metadata": _serialize_metadata(doc.metadata),
+                    "document": _truncate_text(doc.page_content),
+                },
+                config,
+            )
+            grade = await grading_model.ainvoke(message_value, config)
+        return doc, _is_positive_grade(grade)
+
+    results = await asyncio.gather(
+        *(score_document(index, doc) for index, doc in enumerate(docs, start=1))
+    )
+
     relevant_docs: list[Document] = []
     discarded_docs: list[Document] = []
-
-    for index, doc in enumerate(docs, start=1):
-        message_value = await prompt.ainvoke(
-            {
-                "question": question,
-                "query": current_query_text,
-                "document_number": str(index),
-                "metadata": _serialize_metadata(doc.metadata),
-                "document": _truncate_text(doc.page_content),
-            },
-            config,
-        )
-        grade = await grading_model.ainvoke(message_value, config)
-        if _is_positive_grade(grade):
+    for doc, is_relevant in results:
+        if is_relevant:
             relevant_docs.append(doc)
         else:
             discarded_docs.append(doc)

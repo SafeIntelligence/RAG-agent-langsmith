@@ -141,3 +141,10 @@ class Configuration(IndexConfiguration):
             "description": "Maximum number of queries the generator may produce per turn when decomposing a complex request."
         },
     )
+
+    max_parallel_grades: int = field(
+        default=4,
+        metadata={
+            "description": "Maximum number of concurrent document grading calls."
+        },
+    )
