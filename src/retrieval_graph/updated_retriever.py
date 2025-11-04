@@ -8,7 +8,7 @@ relevant documents, and formulating responses.
 
 import json
 from datetime import datetime, timezone
-from typing import Any, Literal, cast
+from typing import Any, Literal, Optional, cast
 
 from langchain_core.documents import Document
 from langchain_core.messages import BaseMessage
@@ -277,8 +277,18 @@ async def rewrite_query(
         },
         config,
     )
-    rewritten = cast(SearchQuery, await rewrite_model.ainvoke(message_value, config))
-    new_query = rewritten.query.strip() or previous_query
+    rewritten = await rewrite_model.ainvoke(message_value, config)
+
+    # Structured outputs occasionally return ``None`` when the model does not adhere to
+    # the schema. Fall back to the previous query in that case so the graph can continue.
+    if isinstance(rewritten, SearchQuery):
+        candidate = rewritten.query
+    elif isinstance(rewritten, dict):
+        candidate = cast(Optional[str], rewritten.get("query"))
+    else:
+        candidate = getattr(rewritten, "query", None)  # type: ignore[attr-defined]
+
+    new_query = (candidate or previous_query).strip() or previous_query
 
     return {
         "queries": [new_query],
