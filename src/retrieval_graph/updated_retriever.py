@@ -25,10 +25,10 @@ from retrieval_graph.utils import format_docs, get_message_text, load_chat_model
 # Define the function that calls the model
 
 
-class SearchQuery(BaseModel):
-    """Search the indexed documents for a query."""
+class SearchQueries(BaseModel):
+    """Container for one or more search queries."""
 
-    query: str
+    queries: list[str]
 
 
 class DocumentGrade(BaseModel):
@@ -80,69 +80,76 @@ def _summarize_discarded_docs(
     return "\n\n".join(snippets)
 
 
+def _is_positive_grade(grade: Any) -> bool:
+    """Interpret model output for document relevance."""
+
+    if isinstance(grade, DocumentGrade):
+        candidate: Optional[str] = grade.binary_score
+    elif isinstance(grade, dict):
+        candidate = cast(Optional[str], grade.get("binary_score"))
+    else:
+        candidate = getattr(grade, "binary_score", None)  # type: ignore[attr-defined]
+
+    if not isinstance(candidate, str):
+        return False
+    return candidate.strip().lower().startswith("y")
+
+
 async def generate_query(
     state: State, *, config: RunnableConfig
 ) -> dict[str, Any]:
-    """Generate a search query based on the current state and configuration.
+    """Generate one or more search queries based on the conversation context."""
 
-    This function analyzes the messages in the state and generates an appropriate
-    search query. For the first message, it uses the user's input directly.
-    For subsequent messages, it uses a language model to generate a refined query.
+    configuration = Configuration.from_runnable_config(config)
+    max_queries = max(1, configuration.max_queries_per_turn)
+    prompt = ChatPromptTemplate.from_messages(
+        [
+            ("system", configuration.query_system_prompt),
+            ("placeholder", "{messages}"),
+        ]
+    )
+    model = load_chat_model(configuration.query_model).with_structured_output(
+        SearchQueries
+    )
 
-    Args:
-        state (State): The current state containing messages and other information.
-        config (RunnableConfig | None, optional): Configuration for the query generation process.
+    prior_queries = "\n- ".join(state.queries) if state.queries else "<none>"
+    message_value = await prompt.ainvoke(
+        {
+            "messages": state.messages,
+            "queries": prior_queries,
+            "system_time": datetime.now(tz=timezone.utc).isoformat(),
+            "max_queries": max_queries,
+        },
+        config,
+    )
+    generated = await model.ainvoke(message_value, config)
 
-    Returns:
-        dict[str, Any]: A dictionary containing the updated query list and reset tracking fields.
-
-    Behavior:
-        - If there's only one message (first user input), it uses that as the query.
-        - For subsequent messages, it uses a language model to generate a refined query.
-        - The function uses the configuration to set up the prompt and model for query generation.
-    """
-    messages = state.messages
-    if len(messages) == 1:
-        # It's the first user question. We will use the input directly to search.
-        human_input = get_message_text(messages[-1])
-        return {
-            "queries": [human_input],
-            "refinement_attempts": 0,
-            "last_retrieval_relevant": None,
-            "should_retry": False,
-            "discarded_docs": [],
-            "retrieved_docs": [],
-        }
+    if isinstance(generated, SearchQueries):
+        candidate_queries = generated.queries
+    elif isinstance(generated, dict):
+        candidate_queries = cast(list[str], generated.get("queries") or [])
     else:
-        configuration = Configuration.from_runnable_config(config)
-        # Feel free to customize the prompt, model, and other logic!
-        prompt = ChatPromptTemplate.from_messages(
-            [
-                ("system", configuration.query_system_prompt),
-                ("placeholder", "{messages}"),
-            ]
-        )
-        model = load_chat_model(configuration.query_model).with_structured_output(
-            SearchQuery
-        )
+        candidate_queries = cast(list[str], getattr(generated, "queries", []) or [])
 
-        message_value = await prompt.ainvoke(
-            {
-                "messages": state.messages,
-                "queries": "\n- ".join(state.queries),
-                "system_time": datetime.now(tz=timezone.utc).isoformat(),
-            },
-            config,
-        )
-        generated = cast(SearchQuery, await model.ainvoke(message_value, config))
-        return {
-            "queries": [generated.query],
-            "refinement_attempts": 0,
-            "last_retrieval_relevant": None,
-            "should_retry": False,
-            "discarded_docs": [],
-            "retrieved_docs": [],
-        }
+    cleaned_queries = [
+        query.strip()
+        for query in candidate_queries
+        if isinstance(query, str) and query.strip()
+    ][:max_queries]
+
+    if not cleaned_queries:
+        # Fall back to the user's latest message when the model fails to follow instructions.
+        cleaned_queries = [get_message_text(state.messages[-1])]
+
+    return {
+        "queries": cleaned_queries,
+        "current_queries": cleaned_queries,
+        "refinement_attempts": 0,
+        "last_retrieval_relevant": None,
+        "should_retry": False,
+        "discarded_docs": [],
+        "retrieved_docs": [],
+    }
 
 
 async def retrieve(
@@ -150,9 +157,9 @@ async def retrieve(
 ) -> dict[str, list[Document]]:
     """Retrieve documents based on the latest query in the state.
 
-    This function takes the current state and configuration, uses the latest query
-    from the state to retrieve relevant documents using the retriever, and returns
-    the retrieved documents.
+    This function takes the current state and configuration, uses the most recent
+    batch of queries to retrieve relevant documents using the retriever, and returns
+    the aggregated results.
 
     Args:
         state (State): The current state containing queries and the retriever.
@@ -162,9 +169,22 @@ async def retrieve(
         dict[str, list[Document]]: A dictionary with a single key "retrieved_docs"
         containing a list of retrieved Document objects.
     """
+    queries = state.current_queries or (state.queries[-1:] if state.queries else [])
+
+    if not queries:
+        return {"retrieved_docs": []}
+
+    retrieved: list[Document] = []
     async with retrieval.make_retriever(config) as retriever:
-        response = await retriever.ainvoke(state.queries[-1], config)
-        return {"retrieved_docs": response}
+        for query in queries:
+            docs = await retriever.ainvoke(query, config)
+            for doc in docs:
+                metadata = doc.metadata or {}
+                metadata.setdefault("source_query", query)
+                doc.metadata = metadata
+            retrieved.extend(docs)
+
+    return {"retrieved_docs": retrieved}
 
 
 async def grade_documents(
@@ -175,7 +195,10 @@ async def grade_documents(
     configuration = Configuration.from_runnable_config(config)
     docs = state.retrieved_docs
     question = get_message_text(state.messages[-1]) if state.messages else ""
-    current_query = state.queries[-1] if state.queries else question
+    active_queries = state.current_queries or (
+        [state.queries[-1]] if state.queries else []
+    )
+    current_query_text = "\n- ".join(active_queries) if active_queries else question
 
     if not docs:
         should_retry = state.refinement_attempts < configuration.max_refinement_attempts
@@ -206,15 +229,15 @@ async def grade_documents(
         message_value = await prompt.ainvoke(
             {
                 "question": question,
-                "query": current_query,
+                "query": current_query_text,
                 "document_number": str(index),
                 "metadata": _serialize_metadata(doc.metadata),
                 "document": _truncate_text(doc.page_content),
             },
             config,
         )
-        grade = cast(DocumentGrade, await grading_model.ainvoke(message_value, config))
-        if grade.binary_score.lower().startswith("y"):
+        grade = await grading_model.ainvoke(message_value, config)
+        if _is_positive_grade(grade):
             relevant_docs.append(doc)
         else:
             discarded_docs.append(doc)
@@ -242,6 +265,7 @@ async def rewrite_query(
     """Rewrite the last search query when retrieved documents are irrelevant."""
 
     configuration = Configuration.from_runnable_config(config)
+    max_queries = max(1, configuration.max_queries_per_turn)
     if state.refinement_attempts >= configuration.max_refinement_attempts:
         return {
             "should_retry": False,
@@ -251,7 +275,9 @@ async def rewrite_query(
         }
 
     question = get_message_text(state.messages[-1]) if state.messages else ""
-    previous_query = state.queries[-1] if state.queries else question
+    previous_batch = state.current_queries or (
+        [state.queries[-1]] if state.queries else [question]
+    )
     attempt_number = state.refinement_attempts + 1
     discarded_summary = _summarize_discarded_docs(state.discarded_docs)
 
@@ -260,20 +286,21 @@ async def rewrite_query(
             ("system", configuration.rewrite_system_prompt),
             (
                 "human",
-                "User question: {question}\nPrevious query: {previous_query}\nAttempt number: {attempt}\nDiscarded documents summary:\n{discarded_docs_summary}",
+                "User question: {question}\nPrevious queries:\n{previous_queries}\nAttempt number: {attempt}\nDiscarded documents summary:\n{discarded_docs_summary}",
             ),
         ]
     )
     rewrite_model = load_chat_model(
         configuration.rewrite_model
-    ).with_structured_output(SearchQuery)
+    ).with_structured_output(SearchQueries)
 
     message_value = await prompt.ainvoke(
         {
             "question": question,
-            "previous_query": previous_query,
+            "previous_queries": "\n- ".join(previous_batch),
             "attempt": attempt_number,
             "discarded_docs_summary": discarded_summary,
+            "max_queries": max_queries,
         },
         config,
     )
@@ -281,17 +308,25 @@ async def rewrite_query(
 
     # Structured outputs occasionally return ``None`` when the model does not adhere to
     # the schema. Fall back to the previous query in that case so the graph can continue.
-    if isinstance(rewritten, SearchQuery):
-        candidate = rewritten.query
+    if isinstance(rewritten, SearchQueries):
+        candidate_queries = rewritten.queries
     elif isinstance(rewritten, dict):
-        candidate = cast(Optional[str], rewritten.get("query"))
+        candidate_queries = cast(list[str], rewritten.get("queries") or [])
     else:
-        candidate = getattr(rewritten, "query", None)  # type: ignore[attr-defined]
+        candidate_queries = cast(list[str], getattr(rewritten, "queries", []) or [])
 
-    new_query = (candidate or previous_query).strip() or previous_query
+    new_queries = [
+        query.strip()
+        for query in candidate_queries
+        if isinstance(query, str) and query.strip()
+    ][:max_queries]
+
+    if not new_queries:
+        new_queries = list(previous_batch)
 
     return {
-        "queries": [new_query],
+        "queries": new_queries,
+        "current_queries": new_queries,
         "refinement_attempts": attempt_number,
         "should_retry": False,
         "last_retrieval_relevant": None,

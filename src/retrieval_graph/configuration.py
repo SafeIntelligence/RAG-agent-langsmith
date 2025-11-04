@@ -134,3 +134,10 @@ class Configuration(IndexConfiguration):
             "description": "Maximum number of query rewrite attempts when retrieved documents are irrelevant."
         },
     )
+
+    max_queries_per_turn: int = field(
+        default=3,
+        metadata={
+            "description": "Maximum number of queries the generator may produce per turn when decomposing a complex request."
+        },
+    )
