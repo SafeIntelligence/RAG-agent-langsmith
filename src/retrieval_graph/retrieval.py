@@ -128,7 +128,7 @@ async def make_mongodb_retriever(
         
         retriever = MongoDBAtlasHybridSearchRetriever(
             vectorstore=vstore,
-            search_index_name="vector_index",
+            search_index_name="text_search",
             fulltext_penalty=50,
             vector_penalty=50,
             top_k=search_kwargs.get("k", 5),
