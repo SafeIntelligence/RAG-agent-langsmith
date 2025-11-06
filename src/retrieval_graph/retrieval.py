@@ -13,7 +13,7 @@ from typing import AsyncGenerator
 
 from langchain_core.embeddings import Embeddings
 from langchain_core.runnables import RunnableConfig
-from langchain_core.vectorstores import VectorStoreRetriever, HybridSearchRetriever
+from langchain_core.vectorstores import VectorStoreRetriever
 from langchain_mongodb.retrievers import MongoDBAtlasHybridSearchRetriever
 
 from retrieval_graph.configuration import Configuration, IndexConfiguration
