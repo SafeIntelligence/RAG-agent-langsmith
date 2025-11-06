@@ -13,7 +13,8 @@ from typing import AsyncGenerator
 
 from langchain_core.embeddings import Embeddings
 from langchain_core.runnables import RunnableConfig
-from langchain_core.vectorstores import VectorStoreRetriever
+from langchain_core.vectorstores import VectorStoreRetriever, HybridSearchRetriever
+from langchain_mongodb.retrievers import MongoDBAtlasHybridSearchRetriever
 
 from retrieval_graph.configuration import Configuration, IndexConfiguration
 
@@ -123,7 +124,17 @@ async def make_mongodb_retriever(
         search_kwargs = configuration.search_kwargs
         # pre_filter = search_kwargs.setdefault("pre_filter", {})
         # pre_filter["user_id"] = {"$eq": configuration.user_id}
-        return vstore.as_retriever(search_kwargs=search_kwargs)
+        # return vstore.as_retriever(search_kwargs=search_kwargs)
+        
+        retriever = MongoDBAtlasHybridSearchRetriever(
+            vectorstore=vstore,
+            search_index_name="vector_index",
+            fulltext_penalty=50,
+            vector_penalty=50,
+            top_k=search_kwargs.get("k", 5),
+        )
+        
+        return retriever
 
     retriever = await asyncio.to_thread(_build_retriever)
     try:
