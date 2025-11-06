@@ -167,9 +167,10 @@ def ingest_html_folder(args: argparse.Namespace) -> None:
         documents.extend(docs)
         doc_ids.extend(ids)
         
-        counter += 1
         if args.max_files is not None and counter >= args.max_files:
             break
+        
+        counter += 1
 
     if not documents:
         LOGGER.warning("No documents prepared for ingestion. Exiting.")
@@ -191,7 +192,7 @@ def ingest_html_folder(args: argparse.Namespace) -> None:
     
     
 
-    embedding_model = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-001")
+    embedding_model = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-001", task_type="retrieval_document")
     
     # embedding_model = make_text_encoder(args.embedding_model)
     
@@ -297,7 +298,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--max-files",
         type=int,
-        default=5,
+        default=10,
         help="Maximum number of HTML files to process (default: all files).",
     )
     parser.add_argument(

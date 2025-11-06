@@ -2,7 +2,7 @@
 from markdownify import markdownify as md
 import re
 from bs4 import BeautifulSoup
-from langchain_text_splitters import MarkdownHeaderTextSplitter
+from langchain_text_splitters import MarkdownHeaderTextSplitter, RecursiveCharacterTextSplitter
 
 table_tag_names = {"table", "thead", "tbody", "tfoot", "tr", "th", "td"}
 
@@ -81,6 +81,12 @@ def get_chunked_texts(html_fp, user_id):
     documents = add_document_name_to_chunks(split_text, document_name, html_fp, user_id)
     
     documents = [doc for doc in documents if len(doc.page_content.strip()) > 80]
+    
+    # documents = RecursiveCharacterTextSplitter(
+    #     separators=["\n\n", "\n", " "],
+    #     chunk_size=2000,
+    #     chunk_overlap=100,
+    # ).split_documents(documents)
 
     ids = [f"{document_name}::chunk-{idx}" for idx in range(len(documents))]
 

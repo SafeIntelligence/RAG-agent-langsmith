@@ -35,7 +35,7 @@ def make_text_encoder(model: str) -> Embeddings:
             return CohereEmbeddings(model=model)  # type: ignore
         case "google_genai":
             from langchain_google_genai import GoogleGenerativeAIEmbeddings
-            return GoogleGenerativeAIEmbeddings(model=model)
+            return GoogleGenerativeAIEmbeddings(model=model, task_type="retrieval_query")
         case _:
             raise ValueError(f"Unsupported embedding provider: {provider}")
 
@@ -124,17 +124,17 @@ async def make_mongodb_retriever(
         search_kwargs = configuration.search_kwargs
         # pre_filter = search_kwargs.setdefault("pre_filter", {})
         # pre_filter["user_id"] = {"$eq": configuration.user_id}
-        # return vstore.as_retriever(search_kwargs=search_kwargs)
+        return vstore.as_retriever(search_kwargs=search_kwargs)
         
-        retriever = MongoDBAtlasHybridSearchRetriever(
-            vectorstore=vstore,
-            search_index_name="text_search",
-            fulltext_penalty=50,
-            vector_penalty=50,
-            top_k=search_kwargs.get("k", 5),
-        )
+        # retriever = MongoDBAtlasHybridSearchRetriever(
+        #     vectorstore=vstore,
+        #     search_index_name="text_search",
+        #     fulltext_penalty=50,
+        #     vector_penalty=50,
+        #     top_k=search_kwargs.get("k", 5),
+        # )
         
-        return retriever
+        # return retriever
 
     retriever = await asyncio.to_thread(_build_retriever)
     try:
